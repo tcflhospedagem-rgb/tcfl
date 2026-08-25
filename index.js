@@ -661,6 +661,15 @@ const commands = [
     .setName('release')
     .setDescription('Se liberar de um time e voltar a ser Free Agent'),
 
+  new SlashCommandBuilder()
+    .setName('release-jogador')
+    .setDescription('Liberar um jogador do time do técnico')
+    .addUserOption(opt =>
+      opt.setName('jogador')
+        .setDescription('Jogador que será liberado')
+        .setRequired(true)
+    ),
+
   // ─── NOVO /scrim COM MODAL ────────────────────────
   new SlashCommandBuilder()
     .setName('scrim')
@@ -1477,6 +1486,95 @@ if (!hasPermission) {
         await sendToChannel(interaction.guild, SCOUTING_ANNOUNCEMENT_CHANNEL, { embeds: [scoutingEmbed] }, `Scouting — ${scout.username}`);
       } catch (err) {
         console.error('❌ Erro ao enviar scouting no canal de anúncios:', err);
+      }
+    }
+
+    else if (interaction.commandName === 'release-jogador') {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+      if (!ALLOWED_RELEASE_CHANNELS.includes(interaction.channelId)) {
+        return interaction.editReply({
+          embeds: [new EmbedBuilder().setColor(0xed4245).setTitle('❌ Canal Não Permitido').setDescription('Este comando só pode ser utilizado em canais específicos.').setFooter({ text: 'The Classic Football League' }).setTimestamp()]
+        });
+      }
+
+      if (!hasCommandPermission(interaction.member)) {
+        return interaction.editReply({
+          embeds: [new EmbedBuilder().setColor(0xed4245).setTitle('🔒 Sem Permissão').setDescription('Apenas membros com um cargo em **Allowed Command Roles** podem usar este comando.').setFooter({ text: 'The Classic Football League' }).setTimestamp()]
+        });
+      }
+
+      const technicianTeamRoles = ALLOWED_TEAM_ROLES.filter(roleId => interaction.member.roles.cache.has(roleId));
+      if (technicianTeamRoles.length !== 1) {
+        return interaction.editReply({
+          embeds: [new EmbedBuilder().setColor(0xed4245).setTitle('❌ Time do Técnico Indefinido').setDescription('Você precisa ter exatamente um cargo de time autorizado para liberar jogadores.').setFooter({ text: 'The Classic Football League' }).setTimestamp()]
+        });
+      }
+
+      const targetUser = interaction.options.getUser('jogador');
+      const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+      if (!targetMember) {
+        return interaction.editReply({ content: '❌ Não foi possível encontrar esse jogador no servidor.' });
+      }
+
+      const technicianTeamRoleId = technicianTeamRoles[0];
+      if (!targetMember.roles.cache.has(technicianTeamRoleId)) {
+        return interaction.editReply({
+          embeds: [new EmbedBuilder().setColor(0xed4245).setTitle('❌ Jogador de Outro Time').setDescription('Você só pode liberar jogadores que tenham o mesmo cargo de time que você.').setFooter({ text: 'The Classic Football League' }).setTimestamp()]
+        });
+      }
+
+      const targetTeamRoles = ALLOWED_TEAM_ROLES.filter(roleId => targetMember.roles.cache.has(roleId));
+      const technicianTeamRole = interaction.guild.roles.cache.get(technicianTeamRoleId);
+      const removedTeamRoles = targetTeamRoles
+        .map(roleId => interaction.guild.roles.cache.get(roleId))
+        .filter(Boolean);
+
+      try {
+        await targetMember.roles.remove(targetTeamRoles);
+
+        for (const [id, contract] of activeContracts) {
+          if (contract.signee.id === targetUser.id) {
+            activeContracts.delete(id);
+            const timer = expirationTimers.get(id);
+            if (timer) {
+              clearTimeout(timer);
+              expirationTimers.delete(id);
+            }
+          }
+        }
+        saveContracts();
+        await targetMember.roles.add(FREE_AGENT_ROLE_ID);
+
+        const releaseEmbed = new EmbedBuilder()
+          .setColor(0xf0c030)
+          .setTitle('🔓 Jogador Liberado')
+          .setDescription(`${targetUser} foi liberado por ${interaction.user} e não faz mais parte de nenhum time.`)
+          .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
+          .addFields(
+            { name: 'Jogador', value: `${targetUser}`, inline: true },
+            { name: 'Técnico', value: `${interaction.user}`, inline: true },
+            { name: 'Time Validado', value: technicianTeamRole?.name || 'Time', inline: true },
+            { name: 'Cargos Removidos', value: removedTeamRoles.map(role => role.name).join(', '), inline: false },
+            { name: 'Status', value: '🟡 Free Agent', inline: true },
+          )
+          .setFooter({ text: `The Classic Football League • ${new Date().toLocaleDateString('pt-BR')}` })
+          .setTimestamp();
+
+        await sendToChannel(
+          interaction.guild,
+          RELEASE_ANNOUNCEMENT_CHANNEL,
+          {
+            content: `${targetUser} foi liberado por ${interaction.user}.`,
+            embeds: [releaseEmbed],
+          },
+          `Release — ${targetUser.username}`
+        );
+
+        await interaction.editReply({ embeds: [releaseEmbed] });
+      } catch (err) {
+        console.error('❌ Erro ao liberar jogador pelo técnico:', err);
+        await interaction.editReply({ content: '❌ Não foi possível liberar o jogador. Verifique se o bot pode gerenciar os cargos.' });
       }
     }
 
