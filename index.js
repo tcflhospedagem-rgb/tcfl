@@ -1811,6 +1811,19 @@ if (!hasPermission) {
         flags: MessageFlags.Ephemeral
       });
 
+      if (selected === 'clubs') {
+        try {
+          await sendToChannel(
+            interaction.guild,
+            CONTRACT_ANNOUNCEMENT_CHANNEL,
+            { content: transferWindow.clubs ? '🔓 Janela de contratos aberta.' : '🔒 Janela de contratos fechada.' },
+            `Janela de contratos — ${transferWindow.clubs ? 'Aberta' : 'Fechada'}`
+          );
+        } catch (err) {
+          console.error('❌ Erro ao anunciar alteração da janela de contratos:', err);
+        }
+      }
+
       return;
     }
 
