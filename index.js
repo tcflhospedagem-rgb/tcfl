@@ -41,6 +41,11 @@ const client = new Client({
   ]
 });
 
+// Evita que erros do cliente (como Rate Limits da API) derrubem o bot
+client.on('error', error => {
+  console.error('Discord client error:', error);
+});
+
 const REACTION_MESSAGE_ID = '1499060132145795233';
 
 const ALLOWED_COMMAND_ROLES = [
