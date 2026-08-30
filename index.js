@@ -1722,6 +1722,8 @@ if (!hasPermission) {
       return interaction.reply({ content: '❌ Apenas o jogador indicado pode aceitar ou rejeitar este contrato.', flags: MessageFlags.Ephemeral });
     }
 
+    await interaction.deferUpdate();
+
     if (action === 'accept') {
       const guildMembers = await interaction.guild.members.fetch();
       const rosterCount = guildMembers.filter(member => member.roles.cache.has(contractData.teamRoleId)).size;
@@ -1732,7 +1734,7 @@ if (!hasPermission) {
           new ButtonBuilder().setCustomId('disabled_reject').setLabel('Reject').setStyle(ButtonStyle.Danger).setDisabled(true)
         );
 
-        return interaction.update({
+        return interaction.editReply({
           content: `❌ O time **${contractData.teamName}** já atingiu o limite de **${ROSTER_CAP} jogadores**. Este contrato não pode ser aceito.`,
           embeds: [
             new EmbedBuilder()
@@ -1792,7 +1794,7 @@ if (!hasPermission) {
         new ButtonBuilder().setCustomId('disabled_reject').setLabel('Reject').setStyle(ButtonStyle.Danger).setDisabled(true)
       );
 
-      await interaction.update({ content: `✅ ${contractData.signee} accepted the contract!`, embeds: [successEmbed], components: [disabledRow] });
+      await interaction.editReply({ content: `✅ ${contractData.signee} accepted the contract!`, embeds: [successEmbed], components: [disabledRow] });
 
     } else if (action === 'reject') {
       pendingContracts.delete(contractId);
@@ -1809,7 +1811,7 @@ if (!hasPermission) {
         new ButtonBuilder().setCustomId('disabled_reject').setLabel('Reject').setStyle(ButtonStyle.Danger).setDisabled(true)
       );
 
-      await interaction.update({ content: `❌ ${contractData.signee} rejected the contract.`, embeds: [rejectEmbed], components: [disabledRow] });
+      await interaction.editReply({ content: `❌ ${contractData.signee} rejected the contract.`, embeds: [rejectEmbed], components: [disabledRow] });
     }
   }
 
