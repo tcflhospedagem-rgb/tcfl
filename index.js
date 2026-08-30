@@ -586,6 +586,10 @@ function isRoleAllowed(role) {
   return false;
 }
 
+function getTeamRosterCount(guild, teamRoleId) {
+  return guild.members.cache.filter(member => member.roles.cache.has(teamRoleId)).size;
+}
+
 async function scheduleContractExpiration(contractId, contractData) {
   const timer = setTimeout(async () => {
     const contract = activeContracts.get(contractId);
@@ -1311,6 +1315,7 @@ if (!hasPermission) {
           { name: 'Team', value: teamRole.name, inline: true },
           { name: 'Position', value: position, inline: true },
           { name: 'Role', value: role, inline: true },
+          { name: 'Roster', value: `${rosterCount}/${ROSTER_CAP}`, inline: true },
         )
         .setFooter({ text: `The Classic Football League • ${new Date().toLocaleDateString('pt-BR')}` })
         .setTimestamp();
@@ -1718,6 +1723,29 @@ if (!hasPermission) {
     }
 
     if (action === 'accept') {
+      const guildMembers = await interaction.guild.members.fetch();
+      const rosterCount = guildMembers.filter(member => member.roles.cache.has(contractData.teamRoleId)).size;
+
+      if (rosterCount >= ROSTER_CAP) {
+        const disabledRow = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('disabled_accept').setLabel('Accept').setStyle(ButtonStyle.Success).setDisabled(true),
+          new ButtonBuilder().setCustomId('disabled_reject').setLabel('Reject').setStyle(ButtonStyle.Danger).setDisabled(true)
+        );
+
+        return interaction.update({
+          content: `❌ O time **${contractData.teamName}** já atingiu o limite de **${ROSTER_CAP} jogadores**. Este contrato não pode ser aceito.`,
+          embeds: [
+            new EmbedBuilder()
+              .setColor(0xed4245)
+              .setTitle('🚫 Limite de Roster Atingido')
+              .setDescription(`O contrato com **${contractData.teamName}** foi bloqueado porque o time já está com **${rosterCount}/${ROSTER_CAP}** jogadores.`)
+              .setFooter({ text: 'The Classic Football League • Limite de roster atingido' })
+              .setTimestamp()
+          ],
+          components: [disabledRow]
+        });
+      }
+
       const now = new Date();
       const expiresAt = new Date(now.getTime() + CONTRACT_EXPIRATION_TIME);
 
